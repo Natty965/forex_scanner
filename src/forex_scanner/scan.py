@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from forex_scanner import config
 from forex_scanner.analysis.indicator_summary import IndicatorSummary, summarize_indicators
 from forex_scanner.analysis.snapshot import PriceSnapshot, build_snapshot
+from forex_scanner.analysis.structure import StructureResult, analyse_structure
 from forex_scanner.analysis.trend import TrendResult, data_status, detect_trend
 from forex_scanner.fetcher import FetchResult, fetch_many
 from forex_scanner.providers import DataProvider
@@ -64,6 +65,18 @@ def _trend(r: FetchResult) -> TrendResult:
     return detect_trend(r.candle_set.candles, r.pair, r.timeframe, config.TREND_LOOKBACK, config.TREND_THRESHOLD)
 
 
+def _structure(r: FetchResult) -> StructureResult:
+    return analyse_structure(r.candle_set.candles, r.pair, r.timeframe, config.ATR_PERIOD)
+
+
+def get_structure(provider: DataProvider, pairs: list[str], timeframes: list[str], store: CandleStore | None
+                  ) -> tuple[list[tuple[StructureResult, str]], list[FetchResult]]:
+    """Swing points and support/resistance per pair and timeframe, from fresh data."""
+    results = _fetch_indicator_history(provider, pairs, timeframes, store)
+    rows = [(_structure(r), data_status(r.candle_set)) for r in results if r.ok]
+    return rows, [r for r in results if not r.ok]
+
+
 def get_indicators(provider: DataProvider, pairs: list[str], timeframes: list[str], store: CandleStore | None
                    ) -> tuple[list[tuple[IndicatorSummary, str]], list[FetchResult]]:
     """Latest EMA/RSI/ATR per pair and timeframe, from fresh data. Returns (summary, data status) rows."""
@@ -79,6 +92,7 @@ class MarketView:
     indicators: list[tuple[IndicatorSummary, str]]
     failures: list[FetchResult]
     candle_sets: dict = field(default_factory=dict)   # (pair, tf) -> CandleSet, for the alert rules
+    structures: list = field(default_factory=list)    # (StructureResult, status), v0.5
 
 
 def get_market(provider: DataProvider, pairs: list[str], timeframes: list[str], store: CandleStore | None
@@ -92,6 +106,7 @@ def get_market(provider: DataProvider, pairs: list[str], timeframes: list[str], 
         indicators=[(_summarize(r), data_status(r.candle_set)) for r in ok],
         failures=[r for r in results if not r.ok],
         candle_sets={(r.pair, r.timeframe): r.candle_set for r in ok},
+        structures=[(_structure(r), data_status(r.candle_set)) for r in ok],
     )
 
 

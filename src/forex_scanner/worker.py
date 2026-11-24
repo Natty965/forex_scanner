@@ -82,6 +82,8 @@ def analysis_records(result: CycleResult) -> list[AnalysisRecord]:
              for t, status in result.view.trends]
     recs += [AnalysisRecord(s.pair, s.timeframe, "indicators", s.last_candle_time, status, result.at, jsonable(s))
              for s, status in result.view.indicators]
+    recs += [AnalysisRecord(s.pair, s.timeframe, "structure", s.last_candle_time, status, result.at, jsonable(s))
+             for s, status in result.view.structures]
     return recs
 
 

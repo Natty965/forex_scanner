@@ -11,6 +11,7 @@ from typing import Any
 
 from forex_scanner.analysis.indicator_summary import IndicatorSummary
 from forex_scanner.analysis.snapshot import Change, PriceSnapshot
+from forex_scanner.analysis.structure import Level, StructureResult, SwingPoint
 from forex_scanner.analysis.trend import TrendResult
 from forex_scanner.events import ItemState
 
@@ -55,6 +56,23 @@ def indicators_from(d: dict) -> IndicatorSummary:
     return IndicatorSummary(d["pair"], d["timeframe"], d["closed_candles"], _dt(d["last_candle_time"]),
                             d["close"], {int(k): v for k, v in d["emas"].items()}, d["rsi"], d["atr"],
                             d["alignment"], d["rsi_zone"], list(d["reasons"]))
+
+
+def _swing(d: dict | None) -> SwingPoint | None:
+    return None if d is None else SwingPoint(_dt(d["time"]), d["kind"], d["price"], d["label"])
+
+
+def _level(d: dict) -> Level:
+    return Level(d["side"], d["price"], d["low"], d["high"], d["touches"], _dt(d["first_time"]),
+                 _dt(d["last_time"]), d["distance_pips"], d["distance_atr"])
+
+
+def structure_from(d: dict) -> StructureResult:
+    return StructureResult(d["pair"], d["timeframe"], _dt(d["last_candle_time"]), d["close"], d["atr"],
+                           d["candles_used"], d["structure"], [_swing(s) for s in d["swings"]],
+                           _swing(d["last_high"]), _swing(d["last_low"]), [_level(x) for x in d["resistance"]],
+                           [_level(x) for x in d["support"]], [_level(x) for x in d["at_price"]],
+                           list(d["reasons"]))
 
 
 def state_from(d: dict) -> ItemState:

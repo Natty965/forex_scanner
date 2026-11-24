@@ -60,6 +60,7 @@ pytest -m live                 # a few tests against the real data source
 | `python -m forex_scanner prices` | Current price, 1h and 24h change (pips and %), freshness status |
 | `python -m forex_scanner trend` | UP / DOWN / SIDEWAYS per pair on M15, H1, D1, with reasons (`--brief` hides them) |
 | `python -m forex_scanner indicators` | EMA 20/50/200, RSI 14, ATR 14 per pair on M15, H1, D1, with explanations (`--brief` hides them) |
+| `python -m forex_scanner structure` | Swing highs/lows, structure (RISING / FALLING / MIXED) and the nearest support and resistance levels per pair on M15, H1, D1, with explanations (`--brief` hides them) |
 | `python -m forex_scanner monitor` | Repeats `prices` + `trend` + `indicators` every 5 min until Ctrl+C, listing changes as events (`--interval`, `--cycles`) |
 | `python -m forex_scanner fetch` | Downloads history for all pairs/timeframes into the database (`--count max` for everything available) |
 | `python -m forex_scanner worker` | Background data collection every 5 min: fetch, analyse, save results and events (one line per cycle). The dashboard will read what it saves |
@@ -373,6 +374,29 @@ Where they appear:
   0.85 x the threshold, so a ratio hovering near 1.8 doesn't repeat). Daily limit: 6. Caution
   alerts expire after 30 minutes if they couldn't be sent.
 
+### Market structure: swings and levels (v0.5, milestone B2)
+
+`python -m forex_scanner structure` (the worker also saves it every cycle, for the dashboard in B3):
+
+- **Swing high:** a closed candle whose high is above the highs of the 3 candles before it and not
+  below the 3 after it (swing low: the mirror image). It is **confirmed only after those 3 later
+  candles have closed**, so a swing never appears and then disappears; the price of that honesty
+  is that the newest swing is always at least 3 candles old.
+- **Labels:** each swing is compared with the previous one of the same kind: HH / LH (higher /
+  lower high), HL / LL (higher / lower low), EH / EL (equal, within 0.1 x ATR).
+- **Structure:** last high HH and last low HL = **RISING**; LH and LL = **FALLING**; anything else
+  = **MIXED** (often a range, or a turn in progress).
+- **Support / resistance levels:** swing points from the last 300 closed candles that lie within
+  0.5 x ATR of each other form one zone; a zone needs at least **2 touches**. Highs and lows are
+  combined, because old resistance often becomes support. The nearest 3 zones above the close are
+  resistance, the nearest 3 below are support, and a zone within 0.25 x ATR of the close is "at
+  price". Each shows its touches and its distance in pips and in ATR. When price is above (or
+  below) every level found, it says so instead of inventing one.
+
+Fast timeframes (M15) give many small, close-together levels; H1 and D1 levels are the more
+meaningful ones. Levels describe where price turned in the past: price often breaks through them,
+and they are not entries, targets or signals.
+
 ## 4. Data source: yfinance (tested November 2026)
 
 | Timeframe | History available |
@@ -536,7 +560,7 @@ Analysis code only relies on this shape, never on a specific provider.
 - [ ] **v0.5 No-trade warnings and market structure** (in progress)
   - [x] B1 Trading conditions: weekend close and open, daily rollover, high volatility, stale data
         (Overview card, brief section, caution alerts)
-  - [ ] B2 Swing highs/lows and support/resistance levels
+  - [x] B2 Swing highs/lows, structure and support/resistance levels (`structure` command; saved by the worker)
   - [ ] B3 Levels on the chart and in the analysis
   - [ ] B4 Level-break events
   - [ ] B5 Release 0.5.0

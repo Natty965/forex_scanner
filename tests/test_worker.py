@@ -9,7 +9,7 @@ from forex_scanner import config
 from forex_scanner.events import EventTracker
 from forex_scanner.storage import CandleStore, WorkerBusy
 from forex_scanner.storage import db as dbmod
-from forex_scanner.storage.records import indicators_from, snapshot_from, trend_from
+from forex_scanner.storage.records import indicators_from, snapshot_from, structure_from, trend_from
 from forex_scanner.worker import print_cycle_line, run_cycle, run_loop
 from tests.fakes import WEDNESDAY, FakeProvider
 
@@ -99,10 +99,12 @@ def test_cycle_saves_analysis_that_reads_back_identically(tmp_path):
         recs = {(r.pair, r.timeframe, r.kind): r for r in store.load_analysis("fake")}
 
     assert set(recs) == {("EUR/USD", "M1", "price"), ("EUR/USD", "H1", "trend"), ("EUR/USD", "D1", "trend"),
-                         ("EUR/USD", "H1", "indicators"), ("EUR/USD", "D1", "indicators")}
+                         ("EUR/USD", "H1", "indicators"), ("EUR/USD", "D1", "indicators"),
+                         ("EUR/USD", "H1", "structure"), ("EUR/USD", "D1", "structure")}
     assert snapshot_from(recs[("EUR/USD", "M1", "price")].payload) == result.snapshots[0]
     assert trend_from(recs[("EUR/USD", "H1", "trend")].payload) == result.view.trends[0][0]
     assert indicators_from(recs[("EUR/USD", "H1", "indicators")].payload) == result.view.indicators[0][0]
+    assert structure_from(recs[("EUR/USD", "H1", "structure")].payload) == result.view.structures[0][0]
     r = recs[("EUR/USD", "H1", "indicators")]
     assert r.computed_at == WEDNESDAY and r.data_status == "OK"
     assert r.as_of == result.view.indicators[0][0].last_candle_time
@@ -112,7 +114,8 @@ def test_latest_analysis_is_replaced_not_duplicated(tmp_path):
     db = tmp_path / "db.db"
     loop(db, FakeProvider(), cycles=3)
     with CandleStore(db) as s:
-        assert s.conn.execute("SELECT count(*) FROM analysis_latest").fetchone()[0] == 3  # price, trend, ind.
+        rows = s.conn.execute("SELECT count(*) FROM analysis_latest").fetchone()[0]
+    assert rows == 4                                    # price, trend, indicators, structure
 
 
 # ---------- events across a restart ----------

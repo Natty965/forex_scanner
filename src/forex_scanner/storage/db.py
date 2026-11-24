@@ -176,7 +176,7 @@ class AnalysisRecord:
     """One row of analysis_latest. `payload` is the JSON form of the result (see records.py)."""
     pair: str
     timeframe: str
-    kind: str                 # "price", "trend" or "indicators"
+    kind: str                 # "price", "trend", "indicators" or "structure"
     as_of: datetime | None    # price time, or newest closed candle used
     data_status: str | None   # status when computed (readers must re-judge freshness)
     computed_at: datetime

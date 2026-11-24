@@ -8,6 +8,7 @@
     python -m forex_scanner prices          -> current prices, 1h/24h change, freshness
     python -m forex_scanner trend           -> UP/DOWN/SIDEWAYS per pair and timeframe, with reasons
     python -m forex_scanner indicators      -> EMA 20/50/200, RSI 14, ATR 14 with explanations
+    python -m forex_scanner structure       -> swing highs/lows, support and resistance levels
     python -m forex_scanner monitor         -> keep refreshing prices, trends, indicators (Ctrl+C to stop)
     python -m forex_scanner worker          -> collect + analyse + save every 5 min (for the dashboard)
     python -m forex_scanner run             -> worker + dashboard at http://localhost:8000 (+ /api/docs)
@@ -130,6 +131,21 @@ def cmd_indicators(pairs: list[str], timeframes: list[str], save: bool, explain:
     with _open_store(save) as store:
         rows, failures = get_indicators(provider, pairs, timeframes, store)
     print_indicators(rows, failures, provider.name, config.EMA_PERIODS, explain=explain)
+    return 0 if not failures else 1
+
+
+def cmd_structure(pairs: list[str], timeframes: list[str], save: bool, explain: bool) -> int:
+    from forex_scanner.display.structure_table import print_structure
+    from forex_scanner.scan import get_structure
+
+    try:
+        provider = get_provider(config.DATA_PROVIDER)
+    except ProviderError as exc:
+        print(f"DATA ERROR: {exc}", file=sys.stderr)
+        return 1
+    with _open_store(save) as store:
+        rows, failures = get_structure(provider, pairs, timeframes, store)
+    print_structure(rows, failures, provider.name, explain=explain)
     return 0 if not failures else 1
 
 
@@ -469,6 +485,12 @@ def main(argv: list[str] | None = None) -> int:
     ind.add_argument("--brief", action="store_true", help="table only, no explanations")
     ind.add_argument("--no-save", action="store_true", help="do not write to the local database")
 
+    st = sub.add_parser("structure", help="swing highs/lows, support and resistance levels, with reasons")
+    st.add_argument("--pairs", nargs="+", default=config.PAIRS, choices=config.PAIRS)
+    st.add_argument("--timeframes", nargs="+", default=config.TIMEFRAMES, choices=list(TIMEFRAME_DURATIONS))
+    st.add_argument("--brief", action="store_true", help="table only, no explanations")
+    st.add_argument("--no-save", action="store_true", help="do not write to the local database")
+
     m = sub.add_parser("monitor", help="keep refreshing prices, trends and indicators until Ctrl+C")
     m.add_argument("--pairs", nargs="+", default=config.PAIRS, choices=config.PAIRS)
     m.add_argument("--timeframes", nargs="+", default=config.TIMEFRAMES, choices=list(TIMEFRAME_DURATIONS))
@@ -523,6 +545,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_trend(args.pairs, args.timeframes, save=not args.no_save, explain=not args.brief)
     if args.command == "indicators":
         return cmd_indicators(args.pairs, args.timeframes, save=not args.no_save, explain=not args.brief)
+    if args.command == "structure":
+        return cmd_structure(args.pairs, args.timeframes, save=not args.no_save, explain=not args.brief)
     if args.command == "monitor":
         return cmd_monitor(args.pairs, args.timeframes, args.interval, save=not args.no_save,
                            cycles=args.cycles, force=args.force)

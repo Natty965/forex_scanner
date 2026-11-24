@@ -54,6 +54,7 @@ export function chartData(over: Partial<ChartData> = {}): ChartData {
       ema200: { needed: 1004, available: 520, ok: false }, rsi14: { needed: 127, available: 1299, ok: true },
       atr14: { needed: 127, available: 1299, ok: true },
     },
+    structure: null,
     ...over,
   };
 }
@@ -63,6 +64,7 @@ export function pairAnalysis(over: Partial<PairAnalysis> = {}): PairAnalysis {
     server_time: T, pair: "EUR/USD", id: "EURUSD", timeframe: "H1", price: price("EUR/USD", 1.09842),
     trend: { ...trend("H1"), reasons: ["The best-fit line fell 60.0 pips.", "Line fell at least 3 ranges: DOWN."] },
     indicators: { ...indicators("H1"), reasons: ["Price is above EMA 20 (1.10000) by 1.0 pips."] },
+    structure: null,
     ...over,
   };
 }

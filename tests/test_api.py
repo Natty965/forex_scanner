@@ -204,6 +204,23 @@ def test_chart_lines_match_the_saved_analysis_exactly(db):
     assert chart["status"] == "OK"
 
 
+def test_structure_in_analysis_and_chart_agree(db):
+    c = client(db)
+    chart = c.get("/api/pairs/EURUSD/chart", params={"timeframe": "H1", "limit": 300}).json()
+    saved = c.get("/api/pairs/EURUSD/analysis", params={"timeframe": "H1"}).json()["structure"]
+    assert saved["status"] == "OK" and saved["reasons"]
+    drawn = chart["structure"]
+    assert drawn["structure"] == saved["structure"]
+    assert drawn["levels"] == saved["resistance"] + saved["at_price"] + saved["support"]
+    closed = {k["time"] for k in chart["candles"] if k["complete"]}
+    assert drawn["swings"] and all(s["time"] in closed for s in drawn["swings"])   # markers sit on candles
+
+
+def test_structure_is_marked_stale_when_the_worker_stops(db):
+    later = client(db, at=WEDNESDAY + timedelta(minutes=30))
+    assert later.get("/api/pairs/EURUSD/analysis").json()["structure"]["status"] == "STALE"
+
+
 def test_chart_lines_respect_warm_up_and_closed_candles(db):
     c = client(db)
     # all 1300 stored candles: EMA 200 needs 1004, so its line starts at the 1004th closed candle

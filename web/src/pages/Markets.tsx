@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { PAGE_DATA_MAX_AGE_MS, useChart, useOverview, usePairAnalysis, usePairEvents } from "../api/client";
-import type { ChartData, Indicators, PairAnalysis, Trend } from "../api/types";
+import type { ChartData, Indicators, Level, PairAnalysis, Structure, Trend } from "../api/types";
 import { alignmentText, Badge, DataStatusBadge, DirectionTag, PriceStatusBadge } from "../components/Badge";
 import { InfoTip } from "../components/InfoTip";
 import { type ChartToggles, EMA_COLORS, PriceChart } from "../components/PriceChart";
@@ -117,6 +117,65 @@ function IndicatorBlock({ i, pair }: { i: Indicators; pair: string }) {
   );
 }
 
+const STRUCTURE_TEXT: Record<Structure["structure"], string> = {
+  RISING: "Rising: higher highs and higher lows",
+  FALLING: "Falling: lower highs and lower lows",
+  MIXED: "Mixed: highs and lows disagree",
+  "n/a": "n/a (not enough swings yet)",
+};
+
+function zone(lv: Level, pair: string): string {
+  const lo = fmtPrice(lv.low, pair);
+  const hi = fmtPrice(lv.high, pair);
+  return lo === hi ? lo : `${lo}–${hi}`;
+}
+
+function LevelRows({ name, levels, pair }: { name: string; levels: Level[]; pair: string }) {
+  if (!levels.length) {
+    return (
+      <tr>
+        <th scope="row">{name}</th>
+        <td colSpan={3} className="dim">none found</td>
+      </tr>
+    );
+  }
+  return (
+    <>
+      {levels.map((lv, n) => (
+        <tr key={`${name}${n}`}>
+          <th scope="row">{n === 0 ? name : ""}</th>
+          <td>{zone(lv, pair)}</td>
+          <td className="dim">{lv.touches}x</td>
+          <td className="dim">{lv.side === "AT PRICE" ? "at price" : `${lv.distance_pips.toFixed(1)} pips`}</td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
+export function StructureBlock({ s, pair }: { s: Structure; pair: string }) {
+  const labels = s.swings.map((x) => x.label).filter(Boolean).slice(-4);
+  return (
+    <section className="ap-section" aria-label="Structure">
+      <h3>
+        Structure and levels <InfoTip term="structure" />
+      </h3>
+      <div className="ap-headline">
+        <strong>{STRUCTURE_TEXT[s.structure]}</strong>
+        {labels.length > 0 && <span className="num dim">last swings {labels.join(" ")}</span>}
+      </div>
+      <table className="kv num">
+        <tbody>
+          <LevelRows name="Resistance" levels={s.resistance} pair={pair} />
+          {s.at_price.length > 0 && <LevelRows name="At price" levels={s.at_price} pair={pair} />}
+          <LevelRows name="Support" levels={s.support} pair={pair} />
+        </tbody>
+      </table>
+      <Reasons items={s.reasons} />
+    </section>
+  );
+}
+
 export function AnalysisPanel({ a }: { a: PairAnalysis }) {
   const ind = a.indicators;
   const status = ind?.status ?? a.trend?.status;
@@ -140,13 +199,14 @@ export function AnalysisPanel({ a }: { a: PairAnalysis }) {
         <>
           {a.trend && <TrendBlock t={a.trend} />}
           {ind && <IndicatorBlock i={ind} pair={a.pair} />}
+          {a.structure && <StructureBlock s={a.structure} pair={a.pair} />}
         </>
       )}
       <section className="means">
         <h3>What this means</h3>
-        <p>A description of what prices have done: direction, averages, momentum and typical movement.</p>
+        <p>A description of what prices have done: direction, averages, momentum, typical movement, and where price turned before.</p>
         <h3>What it doesn't mean</h3>
-        <p>It doesn't predict the next move, and none of it is a buy or sell signal.</p>
+        <p>It doesn't predict the next move, levels often break, and none of it is a buy or sell signal.</p>
       </section>
     </aside>
   );
@@ -221,7 +281,7 @@ export function Markets() {
   const [params, setParams] = useSearchParams();
   const tf = TIMEFRAMES.includes(params.get("tf") as (typeof TIMEFRAMES)[number]) ? params.get("tf")! : "H1";
   const [limit, setLimit] = useState(PAGE);
-  const [show, setShow] = useState<ChartToggles>({ ema: true, rsi: true, atr: true });
+  const [show, setShow] = useState<ChartToggles>({ ema: true, rsi: true, atr: true, levels: true });
   const [tab, setTab] = useState<"data" | "events">("data");
   const chart = useChart(pid, tf, limit);
   const analysis = usePairAnalysis(pid, tf);
@@ -247,7 +307,7 @@ export function Markets() {
           </div>
           <InfoTip term="timeframe" />
           <div className="toggles" role="group" aria-label="Indicators shown">
-            {(["ema", "rsi", "atr"] as const).map((k) => (
+            {(["ema", "rsi", "atr", "levels"] as const).map((k) => (
               <label key={k}>
                 <input type="checkbox" checked={show[k]} onChange={(e) => setShow({ ...show, [k]: e.target.checked })} />
                 {k.toUpperCase()}

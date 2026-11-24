@@ -73,6 +73,48 @@ export interface Indicators extends AnalysisCommon {
   reasons?: string[];
 }
 
+export type StructureLabel = "RISING" | "FALLING" | "MIXED" | "n/a";
+
+export interface SwingPoint {
+  time: string;
+  kind: "HIGH" | "LOW";
+  price: number;
+  label: string | null; // HH / LH / EH, HL / LL / EL
+}
+
+export interface Level {
+  side: "SUPPORT" | "RESISTANCE" | "AT PRICE";
+  price: number;
+  low: number;
+  high: number;
+  touches: number;
+  first_time: string;
+  last_time: string;
+  distance_pips: number;
+  distance_atr: number;
+}
+
+export interface Structure extends AnalysisCommon {
+  close: number | null;
+  atr_pips: number | null;
+  structure: StructureLabel;
+  swings: SwingPoint[];
+  last_high: SwingPoint | null;
+  last_low: SwingPoint | null;
+  resistance: Level[];
+  support: Level[];
+  at_price: Level[];
+  candles_used: number;
+  reasons: string[];
+}
+
+export interface ChartStructure {
+  structure: StructureLabel;
+  swings: { time: number; kind: "HIGH" | "LOW"; price: number; label: string | null }[];
+  levels: Level[];
+  reasons: string[];
+}
+
 export interface PairOverview {
   pair: string;
   id: string;
@@ -114,6 +156,7 @@ export interface PairAnalysis {
   price: Price | null;
   trend: Trend | null;
   indicators: Indicators | null;
+  structure: Structure | null;
 }
 
 export interface ChartCandle {
@@ -142,6 +185,7 @@ export interface ChartData {
   candles: ChartCandle[];
   lines: Record<string, LinePoint[]>; // ema20, ema50, ema200, rsi14, atr14 (ATR in pips)
   warmup: Record<string, { needed: number; available: number; ok: boolean }>;
+  structure: ChartStructure | null;
 }
 
 export type ItemHealth = "OK" | "FAILING" | "NOT UPDATING" | "NOT MONITORED";

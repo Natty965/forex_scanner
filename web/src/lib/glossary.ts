@@ -26,6 +26,8 @@ export const GLOSSARY = {
     "Changes since the worker's previous check: trend changes, EMA 20 crossing EMA 50, RSI entering or leaving its 70/30 zones. Usually happen when a new candle closes.",
   trading:
     "Risk warnings: times and situations when beginners usually should NOT open new trades (weekend close, daily rollover, unusually high volatility, prices not current). They never say when to trade: no warnings is not a signal.",
+  structure:
+    "Swing high/low: a candle whose high (low) beats the 3 candles on each side; confirmed only after those 3 later candles close, so the newest swing is at least 3 candles old. HH/LH = higher/lower high, HL/LL = higher/lower low. Levels (dashed lines, R = resistance above price, S = support below) are price areas where price turned at least twice in the last 300 candles. They show where price reacted before; price often breaks through them. Not signals.",
   conditions:
     "Things worth noticing right now, each with the reason. Market conditions are only shown from current data. Descriptions, not signals.",
   candle:

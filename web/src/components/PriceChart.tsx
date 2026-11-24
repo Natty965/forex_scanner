@@ -1,7 +1,11 @@
 import {
   CandlestickSeries,
   createChart,
+  createSeriesMarkers,
   type IChartApi,
+  type IPriceLine,
+  type ISeriesMarkersPluginApi,
+  type Time,
   type ISeriesApi,
   LineSeries,
   LineStyle,
@@ -29,7 +33,20 @@ const C = {
   rsi: "#38c7d9",
   atr: "#8d97a8",
   guide: "#3a4458",
+  // Levels in neutral colours: support and resistance are places, not "buy" / "sell".
+  resistance: "#e0a458",
+  support: "#6ec1e4",
+  atPrice: "#d6d6d6",
+  swing: "#aab3c2",
 };
+
+const LABELLED_SWINGS = 10; // only the newest swings get HH/HL/LH/LL text, to keep the chart readable
+
+const LEVEL_STYLE = {
+  RESISTANCE: { color: C.resistance, tag: "R" },
+  SUPPORT: { color: C.support, tag: "S" },
+  "AT PRICE": { color: C.atPrice, tag: "Level" },
+} as const;
 
 export const EMA_COLORS: Record<string, string> = { ema20: C.ema20, ema50: C.ema50, ema200: C.ema200 };
 
@@ -37,6 +54,7 @@ export interface ChartToggles {
   ema: boolean;
   rsi: boolean;
   atr: boolean;
+  levels: boolean;
 }
 
 interface Legend {
@@ -57,6 +75,7 @@ export function PriceChart({ data, show }: { data: ChartData; show: ChartToggles
   const seriesRef = useRef<{ candles?: ISeriesApi<"Candlestick">; lines: Record<string, ISeriesApi<"Line">> }>({
     lines: {},
   });
+  const overlayRef = useRef<{ markers?: ISeriesMarkersPluginApi<Time>; priceLines: IPriceLine[] }>({ priceLines: [] });
   const digits = priceDigits(data.pair);
 
   // Fast lookup for the legend: time -> candle, and time -> value for each line.
@@ -134,6 +153,7 @@ export function PriceChart({ data, show }: { data: ChartData; show: ChartToggles
     panes[0]?.setStretchFactor(3);
     for (const p of panes.slice(1)) p.setStretchFactor(1);
     seriesRef.current = refs;
+    overlayRef.current = { markers: createSeriesMarkers(refs.candles, []), priceLines: [] };
 
     const onMove = (param: MouseEventParams) => setHovered(param.time === undefined ? null : legendAt(param.time as number));
     chart.subscribeCrosshairMove(onMove);
@@ -158,6 +178,35 @@ export function PriceChart({ data, show }: { data: ChartData; show: ChartToggles
       firstLoad.current = false;
     }
   }, [data, show.ema, show.rsi, show.atr]);
+  // Swing points and support/resistance levels (B3), redrawn on every refresh.
+  useEffect(() => {
+    const candles = seriesRef.current.candles;
+    const overlay = overlayRef.current;
+    if (!candles) return;
+    for (const pl of overlay.priceLines) candles.removePriceLine(pl);
+    overlay.priceLines = [];
+    const st = show.levels ? data.structure : null;
+    const swings = st?.swings ?? [];
+    overlay.markers?.setMarkers(
+      swings.map((s, i) => ({
+        time: s.time as UTCTimestamp,
+        position: s.kind === "HIGH" ? ("aboveBar" as const) : ("belowBar" as const),
+        shape: "circle" as const,
+        size: 0.4,
+        color: C.swing,
+        text: i >= swings.length - LABELLED_SWINGS ? (s.label ?? "") : "", // older swings: plain dots
+      })),
+    );
+    for (const lv of st?.levels ?? []) {
+      const style = LEVEL_STYLE[lv.side];
+      overlay.priceLines.push(
+        candles.createPriceLine({
+          price: lv.price, color: style.color, lineWidth: 1, lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true, title: `${style.tag} ${lv.touches}x`,
+        }),
+      );
+    }
+  }, [data, show.levels, show.ema, show.rsi, show.atr]);
   useEffect(() => {
     firstLoad.current = true; // new pair/timeframe: show the latest candles again
   }, [data.pair, data.timeframe]);

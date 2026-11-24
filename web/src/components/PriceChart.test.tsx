@@ -9,6 +9,7 @@ const calls = vi.hoisted(() => ({
   series: [] as { type: string; options: Record<string, unknown>; pane: number; data: unknown[]; priceLines: unknown[] }[],
   chartOptions: {} as Record<string, unknown>,
   onCrosshair: undefined as undefined | ((p: { time?: number }) => void),
+  markers: [] as { time: number; position: string; text: string }[],
 }));
 
 vi.mock("lightweight-charts", () => {
@@ -17,13 +18,15 @@ vi.mock("lightweight-charts", () => {
     calls.series.push(rec);
     return {
       setData: (d: unknown[]) => { rec.data = d; },
-      createPriceLine: (o: unknown) => { rec.priceLines.push(o); },
+      createPriceLine: (o: unknown) => { rec.priceLines.push(o); return o; },
+      removePriceLine: (o: unknown) => { rec.priceLines = rec.priceLines.filter((x) => x !== o); },
     };
   };
   return {
     CandlestickSeries: "Candlestick",
     LineSeries: "Line",
     LineStyle: { Dashed: 2 },
+    createSeriesMarkers: () => ({ setMarkers: (m: typeof calls.markers) => { calls.markers = m; } }),
     createChart: (_el: unknown, options: Record<string, unknown>) => {
       calls.chartOptions = options;
       return {
@@ -42,11 +45,25 @@ import { PriceChart } from "./PriceChart";
 
 beforeEach(() => {
   calls.series = [];
+  calls.markers = [];
 });
+
+const t0 = Date.UTC(2026, 10, 10, 0) / 1000;
+const level = (side: "SUPPORT" | "RESISTANCE" | "AT PRICE", price: number, touches: number) => ({
+  side, price, low: price, high: price, touches, first_time: "", last_time: "", distance_pips: 10, distance_atr: 1,
+});
+const withStructure = () =>
+  chartData({
+    structure: {
+      structure: "RISING", reasons: [],
+      swings: [{ time: t0 + 10 * 3600, kind: "HIGH", price: 1.102, label: "HH" }, { time: t0 + 20 * 3600, kind: "LOW", price: 1.1, label: "HL" }],
+      levels: [level("RESISTANCE", 1.14, 7), level("SUPPORT", 1.12, 2)],
+    },
+  });
 
 describe("PriceChart", () => {
   it("puts candles and EMAs in the main pane, RSI and ATR in their own panes", () => {
-    render(<PriceChart data={chartData()} show={{ ema: true, rsi: true, atr: true }} />);
+    render(<PriceChart data={chartData()} show={{ ema: true, rsi: true, atr: true, levels: false }} />);
     const byPane = calls.series.map((s) => [s.type, s.pane]);
     expect(byPane).toEqual([["Candlestick", 0], ["Line", 0], ["Line", 0], ["Line", 0], ["Line", 1], ["Line", 2]]);
     const rsi = calls.series[4];
@@ -54,12 +71,12 @@ describe("PriceChart", () => {
   });
 
   it("keeps the TradingView attribution logo on (licence requirement)", () => {
-    render(<PriceChart data={chartData()} show={{ ema: true, rsi: true, atr: true }} />);
+    render(<PriceChart data={chartData()} show={{ ema: true, rsi: true, atr: true, levels: false }} />);
     expect((calls.chartOptions.layout as { attributionLogo: boolean }).attributionLogo).toBe(true);
   });
 
   it("draws the forming candle faded and leaves un-warmed lines empty", () => {
-    render(<PriceChart data={chartData()} show={{ ema: true, rsi: true, atr: true }} />);
+    render(<PriceChart data={chartData()} show={{ ema: true, rsi: true, atr: true, levels: false }} />);
     const bars = calls.series[0].data as { color?: string }[];
     expect(bars).toHaveLength(300);
     expect(bars[298].color).toBeUndefined();                // closed: normal colours
@@ -68,13 +85,13 @@ describe("PriceChart", () => {
   });
 
   it("moves ATR up a pane when RSI is hidden, and draws no EMAs when they're off", () => {
-    render(<PriceChart data={chartData()} show={{ ema: false, rsi: false, atr: true }} />);
+    render(<PriceChart data={chartData()} show={{ ema: false, rsi: false, atr: true, levels: false }} />);
     expect(calls.series.map((s) => [s.type, s.pane])).toEqual([["Candlestick", 0], ["Line", 1]]);
   });
 
   it("hovering an older candle shows that candle's prices and indicator values", () => {
     const data = chartData();
-    render(<PriceChart data={data} show={{ ema: true, rsi: true, atr: true }} />);
+    render(<PriceChart data={data} show={{ ema: true, rsi: true, atr: true, levels: false }} />);
     const old = data.candles[100];
     act(() => calls.onCrosshair!({ time: old.time }));
     expect(screen.getByText(new Date(old.time * 1000).toISOString().slice(0, 16).replace("T", " ") + " UTC")).toBeInTheDocument();
@@ -89,9 +106,22 @@ describe("PriceChart", () => {
   });
 
   it("legend shows the newest candle; a forming candle gets no indicator values", () => {
-    render(<PriceChart data={chartData()} show={{ ema: true, rsi: true, atr: true }} />);
+    render(<PriceChart data={chartData()} show={{ ema: true, rsi: true, atr: true, levels: false }} />);
     expect(screen.getByText("forming")).toBeInTheDocument();
     expect(screen.getByText(/RSI n\/a/)).toBeInTheDocument();
     expect(screen.getByText(/2026-11-22 11:00 UTC/)).toBeInTheDocument();
+  });
+
+  it("draws levels as labelled dashed lines and swings as markers when LEVELS is on", () => {
+    render(<PriceChart data={withStructure()} show={{ ema: false, rsi: false, atr: false, levels: true }} />);
+    const lines = calls.series[0].priceLines as { price: number; title: string; lineStyle: number }[];
+    expect(lines.map((l) => [l.price, l.title])).toEqual([[1.14, "R 7x"], [1.12, "S 2x"]]);
+    expect(calls.markers.map((m) => [m.position, m.text])).toEqual([["aboveBar", "HH"], ["belowBar", "HL"]]);
+  });
+
+  it("draws no levels or swings when LEVELS is off", () => {
+    render(<PriceChart data={withStructure()} show={{ ema: false, rsi: false, atr: false, levels: false }} />);
+    expect(calls.series[0].priceLines).toEqual([]);
+    expect(calls.markers).toEqual([]);
   });
 });

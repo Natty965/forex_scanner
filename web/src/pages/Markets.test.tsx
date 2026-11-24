@@ -56,6 +56,37 @@ describe("Analysis panel", () => {
   });
 });
 
+describe("Structure in the analysis panel", () => {
+  const lv = (side: "SUPPORT" | "RESISTANCE" | "AT PRICE", low: number, high: number, touches: number, pips: number) => ({
+    side, price: (low + high) / 2, low, high, touches, first_time: "", last_time: "", distance_pips: pips, distance_atr: 1,
+  });
+  const structure = {
+    timeframe: "H1", status: "OK" as const, as_of: "", as_of_label: "", computed_at: "", computed_seconds_ago: 5,
+    close: 1.091, atr_pips: 12, structure: "FALLING" as const, candles_used: 300,
+    swings: [
+      { time: "", kind: "HIGH" as const, price: 1.1, label: "LH" },
+      { time: "", kind: "LOW" as const, price: 1.09, label: "LL" },
+    ],
+    last_high: null, last_low: null,
+    resistance: [lv("RESISTANCE", 1.09577, 1.09637, 7, 47.8)],
+    support: [],
+    at_price: [],
+    reasons: ["No support below: price is below every level found in this period (at or near its lowest area)."],
+  };
+
+  it("shows the structure, the levels with touches and distance, and says when none is found", () => {
+    render(<AnalysisPanel a={pairAnalysis({ structure })} />);
+    expect(screen.getByText("Falling: lower highs and lower lows")).toBeInTheDocument();
+    expect(screen.getByText("last swings LH LL")).toBeInTheDocument();
+    expect(screen.getByText("1.09577–1.09637")).toBeInTheDocument();
+    expect(screen.getByText("7x")).toBeInTheDocument();
+    expect(screen.getByText("47.8 pips")).toBeInTheDocument();
+    expect(screen.getByText("none found")).toBeInTheDocument();
+    expect(screen.getByText(/No support below/)).toBeInTheDocument();
+    expect(screen.getByText(/levels often break/)).toBeInTheDocument();
+  });
+});
+
 describe("Markets page", () => {
   it("shows chart, candle table and analysis from the API", async () => {
     renderMarkets({ "/api/overview": overview(), "/api/pairs/EURUSD/chart": chartData(), "/api/pairs/EURUSD/analysis": pairAnalysis(), "/api/events": { count: 0, events: [] } });

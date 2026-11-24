@@ -393,6 +393,14 @@ Where they appear:
   price". Each shows its touches and its distance in pips and in ATR. When price is above (or
   below) every level found, it says so instead of inventing one.
 
+**On the dashboard (B3):** the Markets chart draws each level as a dashed line labelled with its
+touches (`R 7x` = resistance, `S 2x` = support, `Level` = at price; neutral colours, because a
+level is a place, not "buy" or "sell") and marks swing points above/below their candles (the newest
+10 with HH/HL/LH/LL). Untick **LEVELS** to hide them. The chart computes them from the same stored
+candles it draws, with the same functions as the worker. The analysis panel has a **Structure and
+levels** section (structure, last swings, each level's zone, touches and distance, and the reasons)
+from the worker's saved result, marked STALE like everything else when the worker stops.
+
 Fast timeframes (M15) give many small, close-together levels; H1 and D1 levels are the more
 meaningful ones. Levels describe where price turned in the past: price often breaks through them,
 and they are not entries, targets or signals.
@@ -561,7 +569,7 @@ Analysis code only relies on this shape, never on a specific provider.
   - [x] B1 Trading conditions: weekend close and open, daily rollover, high volatility, stale data
         (Overview card, brief section, caution alerts)
   - [x] B2 Swing highs/lows, structure and support/resistance levels (`structure` command; saved by the worker)
-  - [ ] B3 Levels on the chart and in the analysis
+  - [x] B3 Levels and swings on the chart, structure in the analysis panel
   - [ ] B4 Level-break events
   - [ ] B5 Release 0.5.0
 - [ ] **v0.6 One written strategy + backtest**: exact rules, tested on ~2 years of H1 data

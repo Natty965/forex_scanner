@@ -17,7 +17,7 @@ from forex_scanner.analysis.trend import DATA_MARKET_CLOSED, DATA_OK, DATA_STALE
 from forex_scanner.display.formatting import candle_label
 from forex_scanner.market import is_market_closed, next_open, pip_size
 from forex_scanner.storage import AnalysisRecord, CandleStore
-from forex_scanner.storage.records import indicators_from, jsonable, snapshot_from, trend_from
+from forex_scanner.storage.records import indicators_from, jsonable, snapshot_from, structure_from, trend_from
 
 # Trend/indicator results older than this are not current: the worker normally refreshes
 # them every MONITOR_INTERVAL_MINUTES, so this allows two missed cycles plus a margin.
@@ -211,15 +211,28 @@ def overview_view(store: CandleStore, source: str, now: datetime) -> dict:
                      "events": [jsonable(e) for e in store.load_events(source, limit=10)]})
 
 
+def structure_view(rec: AnalysisRecord, now: datetime) -> dict:
+    """Saved swing structure and support/resistance levels (v0.5 B2), with freshness judged now."""
+    s = structure_from(rec.payload)
+    return jsonable(_analysis_common(rec, now) | {
+        "close": s.close, "atr_pips": None if s.atr is None else s.atr / pip_size(s.pair),
+        "structure": s.structure, "swings": s.swings, "last_high": s.last_high, "last_low": s.last_low,
+        "resistance": s.resistance, "support": s.support, "at_price": s.at_price,
+        "candles_used": s.candles_used, "reasons": s.reasons,
+    })
+
+
 def pair_analysis_view(store: CandleStore, source: str, pair: str, timeframe: str, now: datetime) -> dict:
     recs = _by_key(store.load_analysis(source))
     price, t, i = (recs.get((pair, "M1", "price")), recs.get((pair, timeframe, "trend")),
                    recs.get((pair, timeframe, "indicators")))
+    st = recs.get((pair, timeframe, "structure"))
     return jsonable({
         "server_time": now, "pair": pair, "id": pair_id(pair), "timeframe": timeframe,
         "price": price_view(price, now) if price else None,
         "trend": trend_view(t, now, detailed=True) if t else None,
         "indicators": indicators_view(i, now, detailed=True) if i else None,
+        "structure": structure_view(st, now) if st else None,
     })
 
 
@@ -275,16 +288,39 @@ def chart_view(store: CandleStore, source: str, pair: str, timeframe: str, limit
 
     candles = [{"time": int(ts.timestamp()), "open": r.open, "high": r.high, "low": r.low, "close": r.close,
                 "complete": bool(r.complete)} for ts, r in zip(window.index, window.itertuples(), strict=True)]
+    structure = chart_structure(df, pair, timeframe, window_start)
     rec = next((r for r in store.load_analysis(source, kind="indicators")
                 if r.pair == pair and r.timeframe == timeframe), None)
     return jsonable({
         "pair": pair, "id": pair_id(pair), "timeframe": timeframe, "source": source,
         "status": analysis_status(rec, now) if rec else None,
         "stored_candles": len(df), "closed_candles": len(closed), "count": len(candles),
-        "candles": candles, "lines": lines, "warmup": warmup,
+        "candles": candles, "lines": lines, "warmup": warmup, "structure": structure,
         "atr_unit": "pips", "time_zone": "UTC",
         "note": "Indicator lines use closed candles only and start once their warm-up is complete.",
     })
+
+
+def chart_structure(df, pair: str, timeframe: str, window_start) -> dict | None:
+    """Swing points and levels for the chart, from the SAME stored candles it draws (same functions
+    as the worker and the `structure` command). Swings are those inside the chart window."""
+    from forex_scanner.analysis.structure import analyse_structure, find_swings, label_swings
+
+    if df.empty:
+        return None
+    s = analyse_structure(df, pair, timeframe, config.ATR_PERIOD)
+    if s.atr is None:
+        return {"structure": s.structure, "swings": [], "levels": [], "reasons": s.reasons}
+    closed = df[df["complete"].astype(bool)].tail(s.candles_used)
+    swings = label_swings(find_swings(closed), 0.1 * s.atr)
+    start = int(window_start.timestamp()) if window_start is not None else 0
+    return {
+        "structure": s.structure,
+        "swings": [{"time": int(x.time.timestamp()), "kind": x.kind, "price": x.price, "label": x.label}
+                   for x in swings if int(x.time.timestamp()) >= start],
+        "levels": [jsonable(lv) for lv in (*s.resistance, *s.at_price, *s.support)],
+        "reasons": [],
+    }
 
 
 MONITORED_TIMEFRAMES = ["M1", *config.TIMEFRAMES]   # what the worker refreshes every cycle

@@ -1,9 +1,10 @@
 """Market events: what changed for a pair and timeframe since the previous check.
 
-Three kinds:
-  trend      the trend label changed (e.g. SIDEWAYS -> DOWN)
-  ema_cross  the short EMA crossed the long EMA (EMA 20 vs EMA 50 by default)
-  rsi_zone   RSI moved into or out of its HIGH (>= 70) or LOW (<= 30) zone
+Four kinds:
+  trend        the trend label changed (e.g. SIDEWAYS -> DOWN)
+  ema_cross    the short EMA crossed the long EMA (EMA 20 vs EMA 50 by default)
+  rsi_zone     RSI moved into or out of its HIGH (>= 70) or LOW (<= 30) zone
+  level_break  a newly closed candle closed beyond a support/resistance level (v0.5 B4)
 
 Rules:
   - The first check only sets a baseline; events need a previous state to compare with.
@@ -25,10 +26,15 @@ from forex_scanner.analysis.indicator_summary import (
     RSI_LOW,
     IndicatorSummary,
 )
+from forex_scanner.analysis.structure import StructureResult
 from forex_scanner.analysis.trend import UNKNOWN, TrendResult
 from forex_scanner.market import pip_size
 
-TREND, EMA_CROSS, RSI_ZONE = "trend", "ema_cross", "rsi_zone"
+TREND, EMA_CROSS, RSI_ZONE, LEVEL_BREAK = "trend", "ema_cross", "rsi_zone", "level_break"
+# Level breaks (tuned on Nov 2026 data: about 3-4 H1 events per pair per day, ~1 D1 per pair per week)
+BREAK_MARGIN_ATR = 0.25    # the close must be this x ATR beyond the zone edge (a touch isn't a break)
+BREAK_MIN_TOUCHES = 3      # only levels where price turned at least this often
+BREAK_CAME_FROM = 5        # price must have closed on the other side within this many candles
 ABOVE, BELOW = 1, -1
 
 
@@ -37,7 +43,7 @@ class MarketEvent:
     at: datetime
     pair: str
     timeframe: str
-    kind: str        # TREND / EMA_CROSS / RSI_ZONE
+    kind: str        # TREND / EMA_CROSS / RSI_ZONE / LEVEL_BREAK
     message: str
 
 
@@ -48,6 +54,10 @@ class ItemState:
     ema_side: int | None = None     # ABOVE = short EMA above long EMA, BELOW = below
     rsi_zone: str | None = None
     rsi: float | None = None
+    # support/resistance memory (B4): the zones and close of the last analysed candle
+    levels: tuple[tuple[float, float, int], ...] | None = None    # (zone low, zone high, touches)
+    levels_closes: tuple[float, ...] = ()      # the last BREAK_CAME_FROM closes, oldest first
+    levels_as_of: datetime | None = None
 
 
 def state_from(trend: TrendResult | None, ind: IndicatorSummary | None, cross: tuple[int, int]) -> ItemState:
@@ -101,6 +111,47 @@ def compare(prev: ItemState, curr: ItemState, at: datetime, pair: str, timeframe
     return remembered, events
 
 
+def _zone(low: float, high: float, pair: str) -> str:
+    digits = 3 if pip_size(pair) >= 0.01 else 5
+    lo, hi = f"{low:.{digits}f}", f"{high:.{digits}f}"
+    return lo if lo == hi else f"{lo}-{hi}"
+
+
+def level_breaks(prev: ItemState, s: StructureResult) -> tuple[ItemState, list[str]]:
+    """Compare a NEW closed candle with the levels known before it. Returns (new state, messages).
+
+    Break up (resistance): the new close is above the zone top by BREAK_MARGIN_ATR x ATR, the
+    previous close wasn't, and price closed BELOW the zone within the last BREAK_CAME_FROM candles
+    (it really crossed the zone, rather than wobbling inside it). Break down (support): the mirror
+    image. Only levels with BREAK_MIN_TOUCHES+ touches, known BEFORE this candle (a level can't be
+    broken by the candle that created it). At most one message per direction per candle: the
+    strongest level, plus how many more were crossed.
+    """
+    if s.atr is None or s.close is None or s.last_candle_time is None:
+        return prev, []                                   # nothing reliable: keep the old memory
+    if prev.levels_as_of is not None and s.last_candle_time <= prev.levels_as_of:
+        return prev, []                                   # no new candle since the last check
+    messages: list[str] = []
+    closes, close, margin = prev.levels_closes, s.close, BREAK_MARGIN_ATR * s.atr
+    if prev.levels and closes:
+        up, down = [], []
+        for low, high, touches in prev.levels:
+            if touches < BREAK_MIN_TOUCHES:
+                continue
+            if closes[-1] <= high + margin < close and min(closes) < low:
+                up.append((touches, low, high))
+            elif closes[-1] >= low - margin > close and max(closes) > high:
+                down.append((touches, low, high))
+        for found, words in ((up, "Closed above resistance"), (down, "Closed below support")):
+            if found:
+                touches, low, high = max(found)
+                more = f", and {len(found) - 1} more level(s)" if len(found) > 1 else ""
+                messages.append(f"{words} {_zone(low, high, s.pair)} ({touches} touches{more})")
+    zones = tuple((lv.low, lv.high, lv.touches) for lv in (*s.resistance, *s.at_price, *s.support))
+    return replace(prev, levels=zones, levels_closes=(*closes, close)[-BREAK_CAME_FROM:],
+                   levels_as_of=s.last_candle_time), messages
+
+
 class EventTracker:
     """Remembers the last state of every pair and timeframe and reports what changed."""
 
@@ -108,17 +159,25 @@ class EventTracker:
         self.cross = cross
         self.states: dict[tuple[str, str], ItemState] = {}
 
-    def update(self, at: datetime, trends: list[TrendResult], indicators: list[IndicatorSummary]
-               ) -> list[MarketEvent]:
+    def update(self, at: datetime, trends: list[TrendResult], indicators: list[IndicatorSummary],
+               structures: list[StructureResult] = ()) -> list[MarketEvent]:
         by_trend = {(t.pair, t.timeframe): t for t in trends}
         by_ind = {(s.pair, s.timeframe): s for s in indicators}
+        by_struct = {(s.pair, s.timeframe): s for s in structures}
         events: list[MarketEvent] = []
-        for key in sorted(set(by_trend) | set(by_ind)):
+        for key in sorted(set(by_trend) | set(by_ind) | set(by_struct)):
             curr = state_from(by_trend.get(key), by_ind.get(key), self.cross)
             prev = self.states.get(key)
             if prev is None:                       # first time we see it: baseline only
-                self.states[key] = curr
+                state = curr
+                if key in by_struct:
+                    state, _ = level_breaks(state, by_struct[key])
+                self.states[key] = state
                 continue
-            self.states[key], new = compare(prev, curr, at, key[0], key[1], self.cross)
+            state, new = compare(prev, curr, at, key[0], key[1], self.cross)
+            if key in by_struct:
+                state, messages = level_breaks(state, by_struct[key])
+                new += [MarketEvent(at, key[0], key[1], LEVEL_BREAK, m) for m in messages]
+            self.states[key] = state
             events.extend(new)
         return events

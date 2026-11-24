@@ -9,7 +9,7 @@ const DEFAULTS: AlertSettings = {
   timezone: "Europe/London", brief_time: "07:00", quiet_start: "22:00", quiet_end: "07:00", dry_run: true, paused: false,
   unusual_enabled: true, unusual_timeframes: ["M15", "H1"], unusual_range_atr: 2.5, live_move_enabled: true,
   live_move_atr: 2, unusual_cooldown_minutes: 60, skip_rollover_candle: false, events_enabled: true, events_timeframes: ["H1", "D1"],
-  rsi_high: 70, rsi_high_exit: 65, rsi_low: 30, rsi_low_exit: 35, data_enabled: true, data_fail_cycles: 3,
+  rsi_high: 70, rsi_high_exit: 65, rsi_low: 30, rsi_low_exit: 35, level_break_timeframes: ["D1"], data_enabled: true, data_fail_cycles: 3,
   caution_enabled: true, caution_kinds: ["weekend_close", "high_volatility"], volatility_threshold: 1.8,
   daily_caps: { unusual_move: 10, market_events: 12, data: 6, brief: 2 },
 };

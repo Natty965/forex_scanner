@@ -93,7 +93,8 @@ def run_cycle(provider: DataProvider, pairs: list[str], timeframes: list[str], s
     snapshots, price_failures = get_prices(provider, pairs, store)
     view = get_market(provider, pairs, timeframes, store)
     at = now()
-    events = tracker.update(at, [t for t, _ in view.trends], [s for s, _ in view.indicators])
+    events = tracker.update(at, [t for t, _ in view.trends], [s for s, _ in view.indicators],
+                            [s for s, _ in view.structures])
     result = CycleResult(at, snapshots, price_failures, view, events)
     if store is not None:
         store.save_analysis(provider.name, analysis_records(result))

@@ -136,7 +136,7 @@ export function Preferences({ saved, defaults, timeframes }: { saved: AlertSetti
   const changed = Object.keys(changes).length > 0;
   const set = <K extends keyof AlertSettings>(k: K, v: AlertSettings[K]) => setDraft({ ...draft, [k]: v });
   const num = (k: keyof AlertSettings) => (e: React.ChangeEvent<HTMLInputElement>) => set(k, Number(e.target.value) as never);
-  const toggleTf = (k: "unusual_timeframes" | "events_timeframes", tf: string) =>
+  const toggleTf = (k: "unusual_timeframes" | "events_timeframes" | "level_break_timeframes", tf: string) =>
     set(k, draft[k].includes(tf) ? draft[k].filter((x) => x !== tf) : [...draft[k], tf]);
   const toggleKind = (k: string) =>
     set("caution_kinds", draft.caution_kinds.includes(k) ? draft.caution_kinds.filter((x) => x !== k) : [...draft.caution_kinds, k]);
@@ -201,7 +201,7 @@ export function Preferences({ saved, defaults, timeframes }: { saved: AlertSetti
 
       <fieldset>
         <legend>Market events</legend>
-        <Field label="Enabled" help="Trend changes, EMA 20/50 crossings and RSI zone changes, batched into one alert per cycle.">
+        <Field label="Enabled" help="Trend changes, EMA 20/50 crossings, RSI zone changes and support/resistance breaks, batched into one alert per cycle.">
           <input type="checkbox" checked={draft.events_enabled} onChange={(e) => set("events_enabled", e.target.checked)} />
         </Field>
         <Field label="Timeframes">
@@ -215,6 +215,13 @@ export function Preferences({ saved, defaults, timeframes }: { saved: AlertSetti
           <span className="pair-inputs">
             <input type="number" step="1" value={draft.rsi_high} onChange={num("rsi_high")} aria-label="RSI high enter" />
             <input type="number" step="1" value={draft.rsi_high_exit} onChange={num("rsi_high_exit")} aria-label="RSI high leave" />
+          </span>
+        </Field>
+        <Field label="Support/resistance breaks on" help="A close beyond a level price turned at 3+ times. H1 crosses several levels a day, so only D1 is ticked by default; all breaks show on the dashboard.">
+          <span className="tf-checks">
+            {timeframes.map((tf) => (
+              <label key={tf}><input type="checkbox" checked={draft.level_break_timeframes.includes(tf)} onChange={() => toggleTf("level_break_timeframes", tf)} /> {tf}</label>
+            ))}
           </span>
         </Field>
         <Field label="RSI low zone: enter at / leave above">

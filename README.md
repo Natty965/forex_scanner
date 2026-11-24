@@ -273,7 +273,7 @@ run); Telegram comes in milestone A4. See them with `python -m forex_scanner ale
 |---|---|
 | Unusual move | a just-closed M15 or H1 candle's range is at least 2.5x its normal size (ATR) |
 | Fast move | a live price moved at least 2x the hourly ATR within 60 minutes |
-| Market events | trend changes, EMA 20/50 crossings and RSI zone changes on H1 and D1, **batched** into one alert per cycle |
+| Market events | trend changes, EMA 20/50 crossings and RSI zone changes on H1 and D1, plus support/resistance breaks on D1 (v0.5), **batched** into one alert per cycle |
 | Data problem / recovered | every request failed for 3 cycles in a row, and again when data returns |
 | Worker was off | the worker restarts after a gap, so a quiet period isn't mistaken for a quiet market |
 | Daily brief | once a day at 07:00 London: every pair's price, freshness, 24h change, trend on M15/H1/D1, D1 EMAs/RSI/ATR, today's London and New York session opens, and any alerts held overnight |
@@ -400,6 +400,20 @@ level is a place, not "buy" or "sell") and marks swing points above/below their 
 candles it draws, with the same functions as the worker. The analysis panel has a **Structure and
 levels** section (structure, last swings, each level's zone, touches and distance, and the reasons)
 from the worker's saved result, marked STALE like everything else when the worker stops.
+
+**Level breaks (B4):** a new market event, "Closed above resistance ..." / "Closed below support
+...", when a newly CLOSED candle:
+- closes at least 0.25 x ATR beyond a level's zone (a touch or a wick through isn't a break),
+- on a level with 3+ touches, known before that candle,
+- having closed on the other side of the zone within the last 5 candles (so price really crossed
+  it, rather than wobbling inside it).
+
+At most one per direction per candle (the strongest level, "and N more" if it crossed several).
+The memory survives restarts. On Nov 2026 data this gives about 3 H1 breaks per pair per day and
+1-2 D1 breaks per pair per week. All appear in the dashboard's events; Telegram's batched
+market-events alert includes them **only on D1 by default** (*Alerts → Preferences → Market events
+→ Support/resistance breaks on*), because H1 crosses levels several times a day. A break is a
+description of a close; breaks often fail and price returns.
 
 Fast timeframes (M15) give many small, close-together levels; H1 and D1 levels are the more
 meaningful ones. Levels describe where price turned in the past: price often breaks through them,
@@ -570,7 +584,7 @@ Analysis code only relies on this shape, never on a specific provider.
         (Overview card, brief section, caution alerts)
   - [x] B2 Swing highs/lows, structure and support/resistance levels (`structure` command; saved by the worker)
   - [x] B3 Levels and swings on the chart, structure in the analysis panel
-  - [ ] B4 Level-break events
+  - [x] B4 Level-break events (dashboard; Telegram on D1 by default)
   - [ ] B5 Release 0.5.0
 - [ ] **v0.6 One written strategy + backtest**: exact rules, tested on ~2 years of H1 data
       including spread costs; you review the results before going further

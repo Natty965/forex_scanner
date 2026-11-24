@@ -20,7 +20,7 @@ from forex_scanner.analysis.indicator_summary import IndicatorSummary
 from forex_scanner.analysis.indicators import atr, drop_warmup, warmup_candles
 from forex_scanner.analysis.snapshot import LIVE, PriceSnapshot, status_at
 from forex_scanner.analysis.trend import DATA_OK
-from forex_scanner.events import EMA_CROSS, TREND, MarketEvent
+from forex_scanner.events import EMA_CROSS, LEVEL_BREAK, TREND, MarketEvent
 from forex_scanner.market import is_market_closed, pip_size
 from forex_scanner.providers import CandleSet
 from forex_scanner.providers.base import TIMEFRAME_DURATIONS
@@ -162,7 +162,7 @@ def rsi_zone_with_hysteresis(previous: str | None, rsi: float, s: AlertSettings)
 
 def market_events(events: list[MarketEvent], indicators: list[tuple[IndicatorSummary, str]],
                   rsi_zones: dict[str, str], now: datetime, s: AlertSettings) -> tuple[Candidate | None, dict]:
-    """One batched alert with this cycle's trend changes, EMA crossings and RSI zone changes.
+    """One batched alert with this cycle's trend changes, EMA crossings, level breaks and RSI zone changes.
 
     Returns (candidate or None, updated RSI zone memory). The first time a pair/timeframe is
     seen only sets its starting zone, without an alert.
@@ -171,7 +171,8 @@ def market_events(events: list[MarketEvent], indicators: list[tuple[IndicatorSum
     if not s.events_enabled:
         return None, zones
     lines = [f"{e.pair} {e.timeframe}: {e.message}" for e in events
-             if e.kind in (TREND, EMA_CROSS) and e.timeframe in s.events_timeframes]
+             if (e.kind in (TREND, EMA_CROSS) and e.timeframe in s.events_timeframes)
+             or (e.kind == LEVEL_BREAK and e.timeframe in s.level_break_timeframes)]
     for ind, status in indicators:
         if ind.timeframe not in s.events_timeframes or status != DATA_OK or ind.rsi is None:
             continue

@@ -47,6 +47,9 @@ class AlertSettings:
     rsi_high_exit: float = 65.0          # hysteresis: "left HIGH" only below this
     rsi_low: float = 30.0
     rsi_low_exit: float = 35.0
+    # support/resistance breaks (v0.5 B4) are included in the batch only on these timeframes:
+    # H1 crosses several levels a day, so by default only D1 breaks are alerted (all show on the page)
+    level_break_timeframes: list[str] = field(default_factory=lambda: ["D1"])
 
     # data problems
     data_enabled: bool = True
@@ -103,7 +106,7 @@ def validate(s: AlertSettings) -> list[str]:
             _hhmm(getattr(s, name))
         except (ValueError, AttributeError):
             problems.append(f"{name} must be a time like 07:00.")
-    for name in ("unusual_timeframes", "events_timeframes"):
+    for name in ("unusual_timeframes", "events_timeframes", "level_break_timeframes"):
         bad = [tf for tf in getattr(s, name) if tf not in config.TIMEFRAMES]
         if bad:
             problems.append(f"{name}: unknown timeframe(s) {', '.join(bad)}; use {', '.join(config.TIMEFRAMES)}.")

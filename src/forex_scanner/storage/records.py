@@ -76,4 +76,7 @@ def structure_from(d: dict) -> StructureResult:
 
 
 def state_from(d: dict) -> ItemState:
-    return ItemState(d["trend"], d["ema_side"], d["rsi_zone"], d["rsi"])
+    levels = d.get("levels")                  # absent in states saved before v0.5 B4
+    return ItemState(d["trend"], d["ema_side"], d["rsi_zone"], d["rsi"],
+                     None if levels is None else tuple((lo, hi, int(n)) for lo, hi, n in levels),
+                     tuple(d.get("levels_closes") or ()), _dt(d.get("levels_as_of")))

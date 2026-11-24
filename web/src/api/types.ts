@@ -277,6 +277,7 @@ export interface AlertSettings {
   rsi_high_exit: number;
   rsi_low: number;
   rsi_low_exit: number;
+  level_break_timeframes: string[];
   data_enabled: boolean;
   data_fail_cycles: number;
   caution_enabled: boolean;

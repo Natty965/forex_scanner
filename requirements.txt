@@ -1,0 +1,11 @@
+# Runtime dependencies (all free, open-source)
+yfinance>=0.2.50      # initial Forex data provider (unofficial Yahoo Finance wrapper)
+pandas>=2.2           # tables of candle data
+python-dotenv>=1.0    # loads settings/secrets from .env
+rich>=13.7            # readable terminal tables and colors
+fastapi>=0.165        # local read-only API for the dashboard (v0.3)
+uvicorn>=0.54         # runs the API on this PC (v0.3)
+
+# Development tools
+pytest>=8.0           # automated tests
+httpx2>=2.16          # lets tests call the API without starting a server

@@ -1,0 +1,24 @@
+# Project metadata. This lets us install our own code in "editable" mode
+# (pip install -e .) so "import forex_scanner" works from anywhere,
+# including the tests, without path hacks.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forex-scanner"
+version = "0.3.0"
+description = "Personal Forex market scanner for learning and demo use only. No real trading."
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Tests marked "live" hit the real internet; run them explicitly with: pytest -m live
+addopts = "-m 'not live'"
+markers = [
+    "live: needs internet access to a real data source",
+    "real_process_check: uses real processes to test the worker lock's process check",
+]

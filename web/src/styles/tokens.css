@@ -1,0 +1,51 @@
+/* Design tokens: every colour, font and spacing value lives here.
+   Rule: green/red are ONLY for price direction (up/down). States use neutral colours,
+   and colour is never the only signal: a text label is always shown too. */
+
+:root {
+  /* surfaces */
+  --bg: #0b0e14;
+  --surface: #11161f;
+  --surface-2: #161c27;
+  --surface-3: #1c2331;
+  --border: #232b3a;
+  --border-strong: #2f394b;
+
+  /* text */
+  --text: #d8dde6;
+  --text-dim: #8d97a8;
+  --text-faint: #5f697b;
+
+  /* accents and meaning */
+  --accent: #5b8cff;          /* links, active navigation */
+  --up: #26c281;              /* price went up */
+  --down: #ef5350;            /* price went down */
+  --live: #26c281;
+  --delayed: #f0a92e;         /* amber: attention, not danger */
+  --stale: #ef5350;           /* data problem */
+  --closed: #6ea8fe;          /* market closed: informational */
+  --notice: #38c7d9;          /* neutral highlight (e.g. RSI zones) */
+  --muted: #5f697b;
+
+  /* type */
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 22px;
+  --fs-price: 28px;
+
+  /* spacing and shape */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius: 8px;
+  --radius-sm: 5px;
+  --sidebar-w: 216px;
+  --header-h: 56px;
+}
